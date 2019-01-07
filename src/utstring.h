@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2008-2017, Troy D. Hanson   http://troydhanson.github.com/uthash/
+Copyright (c) 2008-2018, Troy D. Hanson   http://troydhanson.github.com/uthash/
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -26,7 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef UTSTRING_H
 #define UTSTRING_H
 
-#define UTSTRING_VERSION 2.0.2
+#define UTSTRING_VERSION 2.1.0
 
 #include <stdlib.h>
 #include <string.h>
@@ -44,8 +44,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 typedef struct {
-    char *d;
-    size_t n; /* allocd size */
+    char *d;  /* pointer to allocated buffer */
+    size_t n; /* allocated capacity */
     size_t i; /* index of first unused byte */
 } UT_string;
 
@@ -81,8 +81,8 @@ do {                                                       \
 
 #define utstring_new(s)                                    \
 do {                                                       \
-   s = (UT_string*)calloc(sizeof(UT_string),1);            \
-   if (!s) oom();                                          \
+   (s) = (UT_string*)malloc(sizeof(UT_string));            \
+   if (!(s)) oom();                                        \
    utstring_init(s);                                       \
 } while(0)
 

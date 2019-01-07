@@ -12,14 +12,14 @@ PROGS = test1 test2 test3 test4 test5 test6 test7 test8 test9   \
         test66 test67 test68 test69 test70 test71 test72 test73 \
         test74 test75 test76 test77 test78 test79 test80 test81 \
         test82 test83 test84 test85 test86 test87 test88 test89 \
-        test90 test91 test92 test93
+        test90 test91 test92 test93 test94 test95
 CFLAGS += -I$(HASHDIR)
 #CFLAGS += -DHASH_BLOOM=16
 #CFLAGS += -O2
 CFLAGS += -g
 #CFLAGS += -Wstrict-aliasing=2
-CFLAGS += -Wall 
-#CFLAGS += -Wextra 
+CFLAGS += -Wall
+#CFLAGS += -Wextra
 #CFLAGS += -std=c89
 CFLAGS += ${EXTRA_CFLAGS}
 
@@ -74,7 +74,7 @@ pedantic:
 	$(MAKE) all HASH_PEDANTIC=1
 
 cplusplus:
-	CC=$(CXX) $(MAKE) all 
+	CC=$(CXX) $(MAKE) all
 
 thorough:
 	$(MAKE) clean && $(MAKE) all EXTRA_CFLAGS='-pedantic'
@@ -97,7 +97,7 @@ hashscan : $(HASHDIR)/uthash.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(MUR_CFLAGS) $(LDFLAGS) -o $@ $(@).c
 	@$(MKGITIGN)
 
-sleep_test : $(HASHDIR)/uthash.h 
+sleep_test : $(HASHDIR)/uthash.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DHASH_BLOOM=16 $(LDFLAGS) -o $@ $(@).c
 	@$(MKGITIGN)
 
@@ -121,6 +121,6 @@ astyle:
 
 .PHONY: clean astyle
 
-clean:	
+clean:
 	rm -f $(UTILS) $(PLAT_UTILS) $(PROGS) test*.out keystat.??? example hashscan sleep_test *.exe $(GITIGN)
 	rm -rf *.dSYM

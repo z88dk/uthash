@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2005-2014, Troy D. Hanson    http://troydhanson.github.com/uthash/
+Copyright (c) 2005-2018, Troy D. Hanson    http://troydhanson.github.com/uthash/
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -172,7 +172,7 @@ static void found(int fd, char* peer_sig, pid_t pid)
     UT_hash_handle hh;
     size_t i, bloom_len, bloom_bitlen,  bloom_on_bits=0,bloom_off_bits=0;
     char *peer_tbl, *peer_bloom_sig, *peer_bloom_nbits, *peer_bloombv_ptr,
-         *peer_bloombv, *peer_bkts, *peer_key, *peer_hh, *key=NULL, sat[10];
+         *peer_bloombv, *peer_bkts, *peer_key, *peer_hh, *key=NULL;
     const char *hash_fcn = NULL;
     unsigned char *bloombv=NULL;
     static int fileno=0;
@@ -182,8 +182,8 @@ static void found(int fd, char* peer_sig, pid_t pid)
         hash_fcn_hits[NUM_HASH_FUNCS], hash_fcn_winner;
     unsigned max_chain=0;
     uint32_t bloomsig;
-    double bloom_sat=0;
-    snprintf(sat,sizeof(sat),"         ");
+    int has_bloom_filter_fields = 0;
+
     for(i=0; i < NUM_HASH_FUNCS; i++) {
         hash_fcn_hits[i]=0;
     }
@@ -196,9 +196,9 @@ static void found(int fd, char* peer_sig, pid_t pid)
         }
     }
 
-    vv("found signature at peer %p\n", peer_sig);
+    vv("found signature at peer %p\n", (void*)peer_sig);
     peer_tbl = tbl_from_sig_addr(peer_sig);
-    vvv("reading table at peer %p\n", peer_tbl);
+    vvv("reading table at peer %p\n", (void*)peer_tbl);
 
     if ( (tbl = (UT_hash_table*)malloc(sizeof(UT_hash_table))) == NULL) {
         fprintf(stderr, "out of memory\n");
@@ -215,7 +215,7 @@ static void found(int fd, char* peer_sig, pid_t pid)
 
     /* got the table. how about the buckets */
     peer_bkts = (char*)tbl->buckets;
-    vvv("reading buckets at peer %p\n", peer_bkts);
+    vvv("reading buckets at peer %p\n", (void*)peer_bkts);
     bkts = (UT_hash_bucket*)malloc(sizeof(UT_hash_bucket)*tbl->num_buckets);
     if (bkts == NULL) {
         fprintf(stderr, "out of memory\n");
@@ -284,7 +284,7 @@ static void found(int fd, char* peer_sig, pid_t pid)
     peer_bloom_sig =   peer_tbl + offsetof(UT_hash_table, bloom_sig);
     peer_bloombv_ptr = peer_tbl + offsetof(UT_hash_table, bloom_bv);
     peer_bloom_nbits = peer_tbl + offsetof(UT_hash_table, bloom_nbits);
-    vvv("looking for bloom signature at peer %p\n", peer_bloom_sig);
+    vvv("looking for bloom signature at peer %p\n", (void*)peer_bloom_sig);
 #ifdef __FreeBSD__
     if ((read_mem(&bloomsig, pid, (void *)peer_bloom_sig, sizeof(uint32_t)) == 0)  &&
             (bloomsig == HASH_BLOOM_SIGNATURE)) {
@@ -316,7 +316,7 @@ static void found(int fd, char* peer_sig, pid_t pid)
                     (read_mem(bloombv, fd, (off_t)peer_bloombv, bloom_len) == 0)) {
 #endif
                 /* calculate saturation */
-                vvv("read peer bloom bitvector from %p (%u bytes)\n", peer_bloombv, (unsigned)bloom_len);
+                vvv("read peer bloom bitvector from %p (%u bytes)\n", (void*)peer_bloombv, (unsigned)bloom_len);
                 for(i=0; i < bloom_bitlen; i++) {
                     if (HS_BIT_TEST(bloombv,(unsigned)i)) {
                         /* vvv("bit %u set\n",(unsigned)i); */
@@ -325,9 +325,8 @@ static void found(int fd, char* peer_sig, pid_t pid)
                         bloom_off_bits++;
                     }
                 }
+                has_bloom_filter_fields = 1;
                 vvv("there were %u on_bits among %u total bits\n", (unsigned)bloom_on_bits, (unsigned)bloom_bitlen);
-                bloom_sat = bloom_on_bits * 100.0 / bloom_bitlen;
-                snprintf(sat,sizeof(sat),"%2u %5.0f%%", bloom_nbits, bloom_sat);
             }
         }
     }
@@ -342,23 +341,38 @@ static void found(int fd, char* peer_sig, pid_t pid)
     hash_fcn = hash_fcns[hash_fcn_winner];
 
     /*
-    Address            items    ideal  buckets mxch/<10 fl bloom/sat fcn keys saved to
-    ------------------ -------- ----- -------- -------- -- --------- --- -------------
-    0x0123456789abcdef 10000000  98%  32000000 10  100% ok           BER /tmp/9110-0.key
-    0x0123456789abcdef 10000000 100%  32000000  9   90% NX 27/0.010% BER /tmp/9110-1.key
+    Address            ideal    items  buckets mc fl bloom   sat fcn keys saved to
+    ------------------ ----- -------- -------- -- -- ----- ----- --- -------------
+    0x10aa4090           98% 10000000 32000000 10 ok             BER /tmp/9110-0.key
+    0x10abcdef          100% 10000000 32000000  9 NX    27   12% BER /tmp/9110-1.key
     */
-    printf("Address            ideal    items  buckets mc fl bloom/sat fcn keys saved to\n");
-    printf("------------------ ----- -------- -------- -- -- --------- --- -------------\n");
-    printf("%-18p %4.0f%% %8u %8u %2u %s %s %s %s\n",
-           (void*)peer_tbl,
-           (tbl->num_items - tbl->nonideal_items) * 100.0 / tbl->num_items,
-           tbl->num_items,
-           tbl->num_buckets,
-           max_chain,
-           tbl->noexpand ? "NX" : "ok",
-           sat,
-           hash_fcn,
-           (getkeys ? keyfile : ""));
+    printf("Address            ideal    items  buckets mc fl bloom   sat fcn keys saved to\n");
+    printf("------------------ ----- -------- -------- -- -- ----- ----- --- -------------\n");
+    if (has_bloom_filter_fields) {
+        printf("%-18p %4.0f%% %8u %8u %2u %2s %5u %4.0f%c %3s %s\n",
+               (void*)peer_tbl,
+               (tbl->num_items - tbl->nonideal_items) * 100.0 / tbl->num_items,
+               tbl->num_items,
+               tbl->num_buckets,
+               max_chain,
+               tbl->noexpand ? "NX" : "ok",
+               bloom_nbits,
+               bloom_on_bits * 100.0 / bloom_bitlen, '%',
+               hash_fcn,
+               (getkeys ? keyfile : ""));
+    } else {
+        printf("%-18p %4.0f%% %8u %8u %2u %2s %5s %4s%c %3s %s\n",
+               (void*)peer_tbl,
+               (tbl->num_items - tbl->nonideal_items) * 100.0 / tbl->num_items,
+               tbl->num_items,
+               tbl->num_buckets,
+               max_chain,
+               tbl->noexpand ? "NX" : "ok",
+               "",
+               "", ' ',
+               hash_fcn,
+               (getkeys ? keyfile : ""));
+    }
 
 #if 0
     printf("read peer tbl:\n");
